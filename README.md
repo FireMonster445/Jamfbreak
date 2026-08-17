@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="Jamfbreak%20Logo.png" alt="Jamfbreak logo" width="180">
+</p>
+
 # Jamfbreak — Windows MDM settings-restore tool
 
 A **Windows CLI + GUI tool** that bypasses MDM (Mobile Device Management)

@@ -524,6 +524,17 @@ class PublicReleaseTest(unittest.TestCase):
         self.assertEqual(spec.count("datas = webview_datas"), 1)
         self.assertNotIn("datas = webview_datas +", spec)
         self.assertIn("upx=False", spec)
+        self.assertIn(
+            'icon=str(project_root / "Jamfbreak Logo.ico")', spec
+        )
+
+    def test_readme_centers_project_logo(self):
+        readme = Path("README.md").read_text(encoding="utf-8")
+        self.assertTrue(readme.startswith('<p align="center">'))
+        self.assertIn(
+            '<img src="Jamfbreak%20Logo.png" alt="Jamfbreak logo" width="180">',
+            readme,
+        )
 
     def test_public_docs_contain_no_developer_home_path(self):
         readme = Path("README.md").read_text(encoding="utf-8")
