@@ -9,6 +9,7 @@ corrupt backup (which could cause issues after restore).
 from __future__ import annotations
 
 import sqlite3
+import struct
 import sys
 import tempfile
 import unittest
@@ -535,6 +536,20 @@ class PublicReleaseTest(unittest.TestCase):
             '<img src="Jamfbreak%20Logo.png" alt="Jamfbreak logo" width="180">',
             readme,
         )
+
+    def test_app_icon_contains_required_windows_sizes(self):
+        icon = Path("Jamfbreak Logo.ico").read_bytes()
+        reserved, image_type, count = struct.unpack_from("<HHH", icon)
+        self.assertEqual((reserved, image_type), (0, 1))
+
+        sizes = set()
+        for index in range(count):
+            offset = 6 + (16 * index)
+            width, height = struct.unpack_from("BB", icon, offset)
+            sizes.add((width or 256, height or 256))
+
+        required = {16, 24, 32, 48, 64, 128, 256}
+        self.assertTrue({(size, size) for size in required}.issubset(sizes))
 
     def test_public_docs_contain_no_developer_home_path(self):
         readme = Path("README.md").read_text(encoding="utf-8")
