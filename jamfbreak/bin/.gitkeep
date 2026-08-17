@@ -1,0 +1,2 @@
+# Keep this directory in git even though it's normally empty.
+# The required *.exe + DLLs go here (see ../setup.ps1).

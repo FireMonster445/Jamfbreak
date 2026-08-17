@@ -1,0 +1,34 @@
+# User-supplied donor backup folders.
+# NOT redistributable; supplied by the user.
+jamfbreak/backups/*
+!jamfbreak/backups/.gitkeep
+
+# libimobiledevice-win binaries (supplied by the user; not bundled here).
+jamfbreak/bin/*
+!jamfbreak/bin/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.pytest_cache/
+build/
+dist/
+
+# Signing credentials and local environment data
+*.pfx
+*.p12
+*.key
+*.pem
+metadata.json
+.env
+.env.*
+!.env.example
+
+# IDE / OS
+.opencode/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
