@@ -5,7 +5,7 @@ profiles on supervised iOS devices without intentionally erasing the device.
 It performs a real backup restore, so zero data loss or zero boot failure can
 never be guaranteed.
 
-Based on the [RodoExploit](https://github.com/FireMonster445/RodoExploit)
+Based on the [VitreosExploit](https://github.com/FireMonster445/RodoExploit)
 method: edit a pre-made clean backup's `Manifest.plist` with the device's
 real Serial + UDID, then restore it with `idevicebackup2 restore --system
 --settings --skip-apps --no-reboot`. These flags are intended to avoid an
