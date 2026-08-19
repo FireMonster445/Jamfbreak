@@ -59,7 +59,7 @@ to remove its management profile.
   `idevice_id.exe`, `ideviceinfo.exe`, `idevicebackup2.exe`,
   `idevicerestart.exe` (and their DLL dependencies)
 - A **reviewed donor backup folder** placed under `jamfbreak/backups/`.
-  Get one from [RodoExploit](https://github.com/FireMonster445/RodoExploit)
+  Get one from [VitreosExploit](https://github.com/FireMonster445/RodoExploit)
   — copy the reviewed donor folder into `backups/`.
 
 ---
