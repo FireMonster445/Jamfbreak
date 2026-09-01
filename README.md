@@ -16,7 +16,7 @@ It provides a settings-based MDM bypass and restore workflow designed to avoid a
 
 ## ✨ Features
 
-- 🪟 **Windows support** — designed for Windows 10 and Windows 11
+-  **Windows support** — designed for Windows 10 and Windows 11
 - 📱 **iPhone & iPad support** — works with compatible supervised iOS/iPadOS devices
 - 🔓 **MDM bypass** — bypass MDM restrictions using a settings restore
 - 🛠️ **MDM removal workflow** — removes the local management configuration from the restored device state
