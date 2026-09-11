@@ -1,5 +1,5 @@
-# User-supplied donor backup folders.
-# NOT redistributable; supplied by the user.
+# Donor backups are kept out of source history. Reviewed donor backups may be
+# distributed separately in authorized portable release archives.
 jamfbreak/backups/*
 !jamfbreak/backups/.gitkeep
 
