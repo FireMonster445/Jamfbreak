@@ -46,6 +46,7 @@ def _write_valid_backup(
     manifest: bytes | None = None,
     snapshot_state: str = "finished",
     product_version: str = "18.2",
+    product_type: str = "iPad13,8",
 ) -> Path:
     bdir = Path(directory)
     bdir.mkdir(parents=True, exist_ok=True)
@@ -54,7 +55,7 @@ def _write_valid_backup(
         plistlib.dumps(
             {
                 "Product Version": product_version,
-                "Product Type": "iPad13,8",
+                "Product Type": product_type,
                 "Target Identifier": bdir.name,
             },
             fmt=plistlib.FMT_BINARY,
@@ -327,6 +328,17 @@ class CompatibilityTest(unittest.TestCase):
                     bdir, _device_info(product_version="18.2"), self._noop_log
                 )
 
+    def test_cross_model_backup_emits_visible_warning(self):
+        logs = []
+        with tempfile.TemporaryDirectory() as d:
+            bdir = _write_valid_backup(d, product_type="iPhone3,1")
+            rodo_pipeline._validate_backup_compatibility(
+                bdir,
+                _device_info(product_type="iPad13,1"),
+                lambda text, *_: logs.append(text),
+            )
+        self.assertTrue(any("Cross-model restore" in line for line in logs))
+
 
 class RestoreCommandTest(unittest.TestCase):
     def test_helper_resolution_is_limited_to_explicit_bin_folder(self):
@@ -388,6 +400,40 @@ class RestoreCommandTest(unittest.TestCase):
         with mock.patch("jamfbreak.device.subprocess.run", return_value=completed):
             with self.assertRaises(device.DeviceError):
                 device.validate_restore_tool("idevicebackup2.exe")
+
+    def test_restore_streams_native_output_to_caller(self):
+        class FakeProcess:
+            def __init__(self):
+                self.stdout = mock.Mock()
+                self.stdout.__iter__ = mock.Mock(
+                    return_value=iter(["Starting restore\n", "Restore complete\n"])
+                )
+
+            def wait(self):
+                return 0
+
+        with tempfile.TemporaryDirectory() as d:
+            source = Path(d) / "SOURCE-UDID"
+            source.mkdir()
+            for name in ("Info.plist", "Manifest.plist", "Status.plist"):
+                (source / name).write_bytes(b"present")
+            output = []
+            with (
+                mock.patch("jamfbreak.device._bin", return_value="idevicebackup2.exe"),
+                mock.patch("jamfbreak.device.validate_restore_tool"),
+                mock.patch("jamfbreak.device.subprocess.Popen", return_value=FakeProcess()) as popen,
+            ):
+                rc = device.restore_backup(
+                    d,
+                    "TARGET-UDID",
+                    source_udid="SOURCE-UDID",
+                    output_fn=output.append,
+                )
+
+        self.assertEqual(rc, 0)
+        self.assertTrue(any("Starting restore" in line for line in output))
+        self.assertTrue(any("Restore complete" in line for line in output))
+        self.assertEqual(popen.call_args.kwargs["stderr"], device.subprocess.STDOUT)
 
 
 class PipelineSafetyTest(unittest.TestCase):
@@ -492,6 +538,11 @@ class PublicGuiTest(unittest.TestCase):
         self.assertIn(">Jamfbreak <", HTML)
         self.assertNotIn("MDM Patcher", HTML)
         self.assertEqual(device.__package__, "jamfbreak")
+
+    def test_gui_uses_api_ok_contract_and_keeps_running_state(self):
+        self.assertIn("!result.ok", HTML)
+        self.assertNotIn("result.success", HTML)
+        self.assertIn("isPatching = state.status === 'patching'", HTML)
 
     def test_gui_has_no_license_gate(self):
         """The Bypass button must not depend on a license-key workflow."""

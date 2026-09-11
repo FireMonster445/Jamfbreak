@@ -607,6 +607,7 @@ def run_rodo_pipeline(
             str(work_root),
             info.udid,
             source_udid=work_dir.name,
+            output_fn=lambda line: log(line, "info", None),
         )
 
         if rc != 0:

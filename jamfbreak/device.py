@@ -20,6 +20,7 @@ import os
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from .runtime_paths import asset_dir, is_link_or_reparse
 
@@ -236,6 +237,7 @@ def restore_backup(
     *,
     source_udid: str,
     verbose: bool = True,
+    output_fn: Callable[[str], None] | None = None,
 ) -> int:
     """
     Restore a validated backup via the settings-only command.
@@ -261,11 +263,29 @@ def restore_backup(
     command = build_restore_command(
         exe, backup_root, udid, source_udid=source_udid
     )
-    if verbose:
-        print(f"[restore] invoking {' '.join(command)}")
-    proc = subprocess.run(
+    emit = output_fn if output_fn is not None else (print if verbose else None)
+    if emit is not None:
+        emit(f"[restore] invoking {' '.join(command)}")
+
+    # The GUI build has no console, so inheriting stdout/stderr discards the
+    # only useful diagnostics from idevicebackup2.  Merge and stream both
+    # channels to the caller while the restore is running.
+    proc = subprocess.Popen(
         command,
-        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        bufsize=1,
         creationflags=subprocess_creation_flags(),
     )
-    return proc.returncode
+    assert proc.stdout is not None
+    try:
+        for raw_line in proc.stdout:
+            line = raw_line.rstrip("\r\n")
+            if line and emit is not None:
+                emit(line)
+    finally:
+        proc.stdout.close()
+    return proc.wait()

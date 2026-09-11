@@ -597,6 +597,7 @@ HTML = r"""<!DOCTYPE html>
 
       // Status pill
       setStatus(state.status, state.status_text);
+      isPatching = state.status === 'patching';
 
       // Device info
       if (state.device) {
@@ -604,7 +605,7 @@ HTML = r"""<!DOCTYPE html>
           devicePanel.classList.add('visible');
         }
         renderDeviceInfo(state.device);
-        patchBtn.disabled = isPatching || state.status !== 'connected';
+        patchBtn.disabled = state.status !== 'connected';
       } else {
         if (devicePanel.classList.contains('visible') && state.status === 'searching') {
           // keep panel visible but show empty state
@@ -624,12 +625,20 @@ HTML = r"""<!DOCTYPE html>
 
       // Progress
       if (state.status === 'patching') {
+        patchBtn.textContent = 'Bypassing…';
+        refreshBtn.disabled = true;
         setProgress(true, true);
       } else if (state.status === 'success') {
+        patchBtn.textContent = 'Done';
+        refreshBtn.disabled = false;
         setProgress(false);
       } else if (state.status === 'error') {
+        patchBtn.textContent = 'Bypass failed';
+        refreshBtn.disabled = false;
         setProgress(false);
       } else {
+        patchBtn.textContent = 'Bypass';
+        refreshBtn.disabled = false;
         setProgress(false);
       }
     } catch (e) {
@@ -643,7 +652,9 @@ HTML = r"""<!DOCTYPE html>
   // ---- Button handlers ----
   refreshBtn.addEventListener('click', async () => {
     refreshBtn.disabled = true;
-    try { await window.pywebview.api.refresh(); } catch (e) {}
+    try { await window.pywebview.api.refresh(); } catch (e) {
+      log('Refresh failed: ' + String(e), 'error', null);
+    }
     setTimeout(() => { refreshBtn.disabled = false; }, 800);
   });
 
@@ -655,21 +666,16 @@ HTML = r"""<!DOCTYPE html>
     patchBtn.textContent = 'Bypassing…';
     try {
       const result = await window.pywebview.api.start_bypass();
-      patchBtn.textContent = result && result.success ? 'Done' : 'Bypass';
+      if (!result || !result.ok) {
+        isPatching = false;
+        patchBtn.textContent = 'Bypass';
+        log('Could not start bypass: ' + ((result && result.error) || 'unknown error'), 'error', null);
+      }
     } catch (e) {
+      isPatching = false;
       patchBtn.textContent = 'Bypass';
+      log('Could not start bypass: ' + String(e), 'error', null);
     }
-    isPatching = false;
-    refreshBtn.disabled = false;
-    // Re-enable the button only if the device remains connected.
-    setTimeout(() => {
-      window.pywebview.api.get_state().then(s => {
-        if (s && s.status === 'connected') {
-          patchBtn.disabled = false;
-          patchBtn.textContent = 'Bypass';
-        }
-      });
-    }, 600);
   });
 </script>
 </body>
