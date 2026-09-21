@@ -339,6 +339,28 @@ class CompatibilityTest(unittest.TestCase):
             )
         self.assertTrue(any("Cross-model restore" in line for line in logs))
 
+    def test_modern_ipad_backup_threshold(self):
+        self.assertFalse(
+            rodo_pipeline._requires_ios26_ipad_backup(
+                _device_info(product_version="26.6.1")
+            )
+        )
+        self.assertTrue(
+            rodo_pipeline._requires_ios26_ipad_backup(
+                _device_info(product_version="26.6.2")
+            )
+        )
+        self.assertTrue(
+            rodo_pipeline._requires_ios26_ipad_backup(
+                _device_info(product_version="27.0")
+            )
+        )
+        self.assertFalse(
+            rodo_pipeline._requires_ios26_ipad_backup(
+                _device_info(product_version="27.0", product_type="iPhone18,1")
+            )
+        )
+
 
 class RestoreCommandTest(unittest.TestCase):
     def test_helper_resolution_is_limited_to_explicit_bin_folder(self):
@@ -437,6 +459,41 @@ class RestoreCommandTest(unittest.TestCase):
 
 
 class PipelineSafetyTest(unittest.TestCase):
+    def test_modern_ipad_automatically_uses_dedicated_backup(self):
+        with tempfile.TemporaryDirectory() as d:
+            modern = _write_valid_backup(
+                Path(d) / "MODERN-SOURCE",
+                product_version="26.6.2",
+            )
+            info = _device_info(product_version="27.0")
+            with (
+                mock.patch(
+                    "jamfbreak.rodo_pipeline.device.get_device_info",
+                    side_effect=[info, info],
+                ),
+                mock.patch(
+                    "jamfbreak.rodo_pipeline.find_ios26_ipad_backup_dir",
+                    return_value=modern,
+                ) as find_modern,
+                mock.patch(
+                    "jamfbreak.rodo_pipeline.find_backup_dir"
+                ) as find_legacy,
+                mock.patch(
+                    "jamfbreak.rodo_pipeline.device.restore_backup",
+                    return_value=0,
+                ) as restore,
+            ):
+                result = rodo_pipeline.run_rodo_pipeline(
+                    lambda *_: None,
+                    no_reboot=True,
+                )
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.backup_dir, str(modern))
+        find_modern.assert_called_once_with()
+        find_legacy.assert_not_called()
+        restore.assert_called_once()
+
     def test_failed_restore_never_reboots_and_reports_uncertain_state(self):
         logs = []
 

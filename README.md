@@ -97,6 +97,19 @@ The project is based on the VitreosExploit approach of modifying a prepared back
 
 Jamfbreak performs additional validation around this process to reduce accidental restore failures.
 
+### Version-aware iPad backup routing
+
+For iPads reporting iPadOS 26.6.2 or newer, Jamfbreak automatically selects
+the reviewed modern iPad donor under `backups/ios26-ipad/`. Older iPads and
+iPhones continue to use the legacy donor. Both paths use the same guarded
+Python pipeline: validate, copy, edit, verify, settings-only restore, and
+restart only after a zero restore exit code.
+
+The original third-party batch wrapper is not executed. Its renamed device
+helpers are byte-identical to the reviewed helpers already used by Jamfbreak,
+while its unconditional restart would bypass Jamfbreak's failed-restore
+safeguard.
+
 ---
 
 ##  Safety & Restore Protection

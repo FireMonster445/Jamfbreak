@@ -84,6 +84,8 @@ class RodoResult:
 
 
 _BACKUPS_DIR = asset_dir("backups")
+_IOS26_IPAD_BACKUPS_DIR = _BACKUPS_DIR / "ios26-ipad"
+_IOS26_IPAD_MIN_VERSION = (26, 6, 2)
 
 MAX_PLIST_BYTES = 16 * 1024 * 1024
 MAX_BACKUP_FILES = 10_000
@@ -108,6 +110,26 @@ def find_backup_dir() -> Optional[Path]:
         if entry.is_dir() and (entry / "Manifest.plist").is_file():
             return entry
     return None
+
+
+def find_ios26_ipad_backup_dir() -> Optional[Path]:
+    """Find the reviewed iPadOS 26.6.2+ donor in its dedicated directory."""
+    if not _IOS26_IPAD_BACKUPS_DIR.is_dir():
+        return None
+    for entry in sorted(_IOS26_IPAD_BACKUPS_DIR.iterdir()):
+        if entry.is_dir() and (entry / "Manifest.plist").is_file():
+            return entry
+    return None
+
+
+def _requires_ios26_ipad_backup(info: device.DeviceInfo) -> bool:
+    """Return whether this device needs the dedicated modern-iPad donor."""
+    version = _version_parts(info.product_version)
+    return (
+        info.product_type.casefold().startswith("ipad")
+        and version is not None
+        and version >= _IOS26_IPAD_MIN_VERSION
+    )
 
 
 def edit_manifest_plist(
@@ -535,12 +557,29 @@ def run_rodo_pipeline(
 
     # --------------------------------------------------------- find backup
     log("Locating clean backup folder…", "step", "2/5")
+    uses_ios26_ipad_backup = False
     if backup_dir:
         bdir = Path(backup_dir).resolve()
+    elif _requires_ios26_ipad_backup(info):
+        uses_ios26_ipad_backup = True
+        log(
+            f"iPadOS {info.product_version} detected; selecting the reviewed "
+            "iPadOS 26.6.2+ donor backup.",
+            "info",
+            None,
+        )
+        bdir = find_ios26_ipad_backup_dir()
     else:
         bdir = find_backup_dir()
 
     if not bdir or not (bdir / "Manifest.plist").is_file():
+        if uses_ios26_ipad_backup:
+            log("No iPadOS 26.6.2+ donor backup found.", "error", None)
+            log("Expected a validated backup under:", "info", None)
+            log(str(_IOS26_IPAD_BACKUPS_DIR), "info", None)
+            result.exit_code = 4
+            result.error = "iPadOS 26.6.2+ backup folder missing"
+            return result
         log("No clean backup folder found.", "error", None)
         log("Place a reviewed donor backup folder into:", "info", None)
         log(str(_BACKUPS_DIR), "info", None)
