@@ -14,21 +14,21 @@ It provides a settings-based MDM bypass and restore workflow designed to avoid a
 
 ---
 
-## ✨ Features
+##  Features
 
 -  **Windows support** — designed for Windows 10 and Windows 11
-- 📱 **iPhone & iPad support** — works with compatible supervised iOS/iPadOS devices
-- 🔓 **MDM bypass** — bypass MDM restrictions using a settings restore
-- 🛠️ **MDM removal workflow** — removes the local management configuration from the restored device state
-- 💾 **No intentional factory reset** — Jamfbreak does not use a firmware restore as part of its bypass process
-- 🖥️ **GUI & CLI** — use the minimalist graphical interface or command line
-- 🔒 **Fail-closed safety checks** — validation is performed before modifying or restoring a backup
-- 🌐 **No account or license required** — Jamfbreak does not require an online account or license key
-- 🧪 **Offline testing** — core backup and restore logic includes automated safety tests
+-  **iPhone & iPad support** — works with compatible supervised iOS/iPadOS devices
+-  **MDM bypass** — bypass MDM restrictions using a settings restore
+-  **MDM removal workflow** — removes the local management configuration from the restored device state
+-  **No intentional factory reset** — Jamfbreak does not use a firmware restore as part of its bypass process
+-  **GUI & CLI** — use the minimalist graphical interface or command line
+-  **Fail-closed safety checks** — validation is performed before modifying or restoring a backup
+-  **No account or license required** — Jamfbreak does not require an online account or license key
+-  **Offline testing** — core backup and restore logic includes automated safety tests
 
 ---
 
-## 🔎 What is Jamfbreak?
+##  What is Jamfbreak?
 
 Jamfbreak is an open-source Windows MDM bypass / MDM patcher for supervised Apple devices.
 
@@ -36,7 +36,7 @@ It is intended for authorized device owners and security researchers who need to
 
 Unlike traditional MDM patchers that may require a complete device restore first, Jamfbreak uses a validated backup-restore workflow based on the VitreosExploit technique.
 
-### Jamfbreak keywords
+### Jamfbreak keywords (ignore its for SEO)
 
 Jamfbreak is designed around:
 
@@ -55,7 +55,7 @@ Jamfbreak is designed around:
 
 ---
 
-## 🆚 Why Jamfbreak?
+##  Why Jamfbreak?
 
 Many existing MDM patching tools rely on a full restore workflow.
 
@@ -69,7 +69,7 @@ However, this is not risk-free. A backup restore can still partially modify or d
 
 ---
 
-## ⚙️ How Jamfbreak works
+##  How Jamfbreak works
 
 Jamfbreak uses the following high-level pipeline:
 
@@ -99,11 +99,11 @@ Jamfbreak performs additional validation around this process to reduce accidenta
 
 ---
 
-## 🛡️ Safety & Restore Protection
+##  Safety & Restore Protection
 
 Jamfbreak deliberately avoids firmware-level restore operations.
 
-### 🚫 No firmware flashing
+###  No firmware flashing
 
 Jamfbreak does not intentionally write firmware or the boot chain.
 
@@ -113,7 +113,7 @@ It does not call:
 - `irecovery`
 - IPSW firmware restoration
 
-### ✅ Restore validation
+###  Restore validation
 
 Before restoring, Jamfbreak validates:
 
@@ -124,7 +124,7 @@ Before restoring, Jamfbreak validates:
 - payload index
 - required device identity fields
 
-### 🔐 Identity verification
+###  Identity verification
 
 The target device's:
 
@@ -134,13 +134,13 @@ The target device's:
 
 are checked before the restore.
 
-### 🧾 Atomic Manifest modification
+###  Atomic Manifest modification
 
 The original donor backup is never modified directly.
 
 Jamfbreak creates a private working copy and replaces the modified `Manifest.plist` atomically after the complete write has finished.
 
-### ⚠️ Failed restore protection
+###  Failed restore protection
 
 A failed restore is treated as potentially partial.
 
@@ -150,21 +150,21 @@ These mechanisms reduce risk but cannot guarantee that the device will boot norm
 
 ---
 
-## 💻 Requirements
+##  Requirements
 
-### 🖥️ Operating system
+###  Operating system
 
 - Windows 10 64-bit
 - Windows 11 64-bit
 
-### 🧰 Software
+###  Software
 
 - Python 3.10+
 - Python 3.12 tested
 - Dependencies from `requirements.txt`
 - iTunes or Apple Mobile Device Support
 
-### 📡 Apple device communication
+###  Apple device communication
 
 Jamfbreak requires the Windows libimobiledevice binaries:
 
@@ -177,7 +177,7 @@ and their required DLL dependencies.
 
 ---
 
-## 🚀 Installation
+##  Installation
 
 Clone the repository and install the Python dependencies:
 
@@ -200,7 +200,7 @@ It checks the locally supplied helper binaries, displays their SHA-256 hashes, c
 
 ---
 
-## 🖥️ GUI
+##  GUI
 
 Launch the Jamfbreak graphical interface with:
 
@@ -210,17 +210,17 @@ python -m jamfbreak.gui
 
 ### GUI features
 
-- 📶 device connection status
-- 📱 device information
-- 🧾 live console output
-- 🔄 restore status
-- 🧭 simple bypass workflow
+-  device connection status
+-  device information
+-  live console output
+-  restore status
+-  simple bypass workflow
 
 No Jamfbreak account, license key or network connection is required.
 
 ---
 
-## ⌨️ CLI
+##  CLI
 
 Jamfbreak can also be used directly from the command line:
 
@@ -228,25 +228,25 @@ Jamfbreak can also be used directly from the command line:
 python -m jamfbreak.patcher
 ```
 
-### 📁 Specify a backup directory
+###  Specify a backup directory
 
 ```bash
 python -m jamfbreak.patcher --backup-dir "C:\path\to\donor-backup"
 ```
 
-### ⛔ Skip automatic restart
+###  Skip automatic restart
 
 ```bash
 python -m jamfbreak.patcher --no-reboot
 ```
 
-### 🧪 Keep working backup for diagnostics
+###  Keep working backup for diagnostics
 
 ```bash
 python -m jamfbreak.patcher --keep-backup-copy
 ```
 
-### 📲 Select a specific device
+###  Select a specific device
 
 ```bash
 python -m jamfbreak.patcher --udid YOUR-DEVICE-UDID
@@ -254,7 +254,7 @@ python -m jamfbreak.patcher --udid YOUR-DEVICE-UDID
 
 ---
 
-## 🧪 Testing
+##  Testing
 
 Run the offline test suite:
 
@@ -262,7 +262,7 @@ Run the offline test suite:
 python -m tests.smoke_test
 ```
 
-### ✅ Test coverage
+###  Test coverage
 
 - Manifest editing
 - Manifest validation
@@ -279,7 +279,7 @@ python -m tests.smoke_test
 
 ---
 
-## 🏗️ Project Structure
+##  Project Structure
 
 ```
 JamfBreakv2/
@@ -299,7 +299,7 @@ JamfBreakv2/
     └── smoke_test.py
 ```
 
-### 🧩 Core components
+###  Core components
 
 | File | Purpose |
 |------|---------|
@@ -325,7 +325,7 @@ Install Apple Mobile Device Support and run:
 
 Make sure the required libimobiledevice-win binaries are present in `jamfbreak/bin/`.
 
-### 📵 No iOS device detected
+###  No iOS device detected
 
 Make sure:
 
@@ -334,15 +334,15 @@ Make sure:
 3. The USB connection is working
 4. The computer is trusted by the device
 
-### 📦 No donor backup found
+###  No donor backup found
 
 Place the reviewed donor backup in the expected `backups/` directory.
 
-### ⚠️ `Manifest.plist` is invalid
+###  `Manifest.plist` is invalid
 
 The backup may be incomplete, corrupted or incompatible with Jamfbreak.
 
-### ❌ `idevicebackup2` returns an error
+###  `idevicebackup2` returns an error
 
 Do not repeatedly retry the restore or force a reboot.
 
@@ -350,7 +350,7 @@ A failed backup restore can be partially applied. Keep the device connected and 
 
 ---
 
-## 🏭 Building Jamfbreak for Windows
+##  Building Jamfbreak for Windows
 
 Install the build dependencies:
 
@@ -364,7 +364,7 @@ Build the executable:
 python -m PyInstaller --noconfirm --clean Jamfbreak.spec
 ```
 
-### 📦 Output
+###  Output
 
 ```
 dist/Jamfbreak.exe
@@ -378,7 +378,7 @@ UPX compression is disabled to reduce opaque executable packing and potential an
 
 ---
 
-## 🔏 Code signing
+##  Code signing
 
 Do not distribute an unsigned production executable.
 
@@ -388,7 +388,7 @@ Code signing improves publisher identity and reputation but cannot guarantee tha
 
 ---
 
-## ⚠️ Legal & Security Disclaimer
+##  Legal & Security Disclaimer
 
 Jamfbreak is intended only for devices that you own or are explicitly authorized to modify.
 
@@ -414,7 +414,7 @@ Always create a separate, current backup before attempting any restore operation
 
 ---
 
-## 📚 Credits
+##  Credits
 
 Jamfbreak's restore approach is based on research and the VitreosExploit method.
 
@@ -422,7 +422,7 @@ Thanks to the developers and contributors of the open-source Apple device commun
 
 ---
 
-## 🤝 Contributing
+##  Contributing
 
 Issues, bug reports, testing and improvements are welcome.
 
