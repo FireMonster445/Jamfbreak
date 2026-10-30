@@ -361,6 +361,63 @@ class CompatibilityTest(unittest.TestCase):
             )
         )
 
+    def test_modern_iphone_routing_includes_upper_bound(self):
+        # Below the window: legacy donor for both classes.
+        self.assertFalse(
+            rodo_pipeline._requires_ios26_iphone_backup(
+                _device_info(product_version="18.2", product_type="iPhone18,1")
+            )
+        )
+        # Inside the window: every device class uses a 2026 donor.
+        self.assertTrue(
+            rodo_pipeline._requires_ios26_iphone_backup(
+                _device_info(product_version="26.6.2", product_type="iPhone18,1")
+            )
+        )
+        self.assertTrue(
+            rodo_pipeline._requires_ios26_iphone_backup(
+                _device_info(product_version="27.0.1", product_type="iPhone18,1")
+            )
+        )
+        self.assertFalse(
+            rodo_pipeline._requires_ios26_iphone_backup(
+                _device_info(product_version="27.0.1", product_type="iPad13,8")
+            )
+        )
+        # Above the window: the modern path no longer applies.
+        self.assertFalse(
+            rodo_pipeline._requires_ios26_iphone_backup(
+                _device_info(product_version="27.0.2", product_type="iPhone18,1")
+            )
+        )
+        self.assertFalse(
+            rodo_pipeline._requires_ios26_ipad_backup(
+                _device_info(product_version="27.0.2")
+            )
+        )
+
+    def test_ios_above_window_is_flagged_unsupported(self):
+        self.assertFalse(
+            rodo_pipeline._exceeds_supported_ios(
+                _device_info(product_version="27.0.1")
+            )
+        )
+        self.assertTrue(
+            rodo_pipeline._exceeds_supported_ios(
+                _device_info(product_version="27.0.2")
+            )
+        )
+        self.assertTrue(
+            rodo_pipeline._exceeds_supported_ios(
+                _device_info(product_version="27.1")
+            )
+        )
+        self.assertFalse(
+            rodo_pipeline._exceeds_supported_ios(
+                _device_info(product_version="18.2")
+            )
+        )
+
 
 class RestoreCommandTest(unittest.TestCase):
     def test_helper_resolution_is_limited_to_explicit_bin_folder(self):
@@ -494,6 +551,83 @@ class PipelineSafetyTest(unittest.TestCase):
         find_legacy.assert_not_called()
         restore.assert_called_once()
 
+    def test_modern_iphone_automatically_uses_dedicated_backup(self):
+        with tempfile.TemporaryDirectory() as d:
+            modern = _write_valid_backup(
+                Path(d) / "MODERN-IPHONE-SOURCE",
+                product_version="26.6.2",
+                product_type="iPhone18,1",
+            )
+            info = _device_info(
+                product_version="26.6.2", product_type="iPhone18,1"
+            )
+            with (
+                mock.patch(
+                    "jamfbreak.rodo_pipeline.device.get_device_info",
+                    side_effect=[info, info],
+                ),
+                mock.patch(
+                    "jamfbreak.rodo_pipeline.find_ios26_iphone_backup_dir",
+                    return_value=modern,
+                ) as find_modern,
+                mock.patch(
+                    "jamfbreak.rodo_pipeline.find_ios26_ipad_backup_dir"
+                ) as find_ipad,
+                mock.patch(
+                    "jamfbreak.rodo_pipeline.find_backup_dir"
+                ) as find_legacy,
+                mock.patch(
+                    "jamfbreak.rodo_pipeline.device.restore_backup",
+                    return_value=0,
+                ) as restore,
+            ):
+                result = rodo_pipeline.run_rodo_pipeline(
+                    lambda *_: None,
+                    no_reboot=True,
+                )
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.backup_dir, str(modern))
+        find_modern.assert_called_once_with()
+        find_ipad.assert_not_called()
+        find_legacy.assert_not_called()
+        restore.assert_called_once()
+
+    def test_ios_above_supported_window_refuses_before_any_device_action(self):
+        logs = []
+
+        def log(text, kind, tag):
+            logs.append(text)
+
+        info = _device_info(product_version="27.0.2")
+        with (
+            mock.patch(
+                "jamfbreak.rodo_pipeline.device.get_device_info",
+                side_effect=[info],
+            ),
+            mock.patch(
+                "jamfbreak.rodo_pipeline.device.restore_backup"
+            ) as restore,
+            mock.patch("jamfbreak.rodo_pipeline.find_backup_dir") as find_legacy,
+            mock.patch(
+                "jamfbreak.rodo_pipeline.find_ios26_iphone_backup_dir"
+            ) as find_iphone,
+            mock.patch(
+                "jamfbreak.rodo_pipeline.find_ios26_ipad_backup_dir"
+            ) as find_ipad,
+        ):
+            result = rodo_pipeline.run_rodo_pipeline(log,)
+
+        self.assertEqual(result.exit_code, 6)
+        self.assertIn("27.0.1", result.error)
+        restore.assert_not_called()
+        find_legacy.assert_not_called()
+        find_iphone.assert_not_called()
+        find_ipad.assert_not_called()
+        self.assertTrue(
+            any("device is untouched" in line for line in logs)
+        )
+
     def test_failed_restore_never_reboots_and_reports_uncertain_state(self):
         logs = []
 
@@ -590,27 +724,56 @@ class FindBackupDirTest(unittest.TestCase):
 
 
 class PublicGuiTest(unittest.TestCase):
+    """
+    Contract for the compiled React GUI bundle. Source-level checks read
+    frontend/src so the guarantees hold where the markup is authored; the
+    bundle checks verify what actually ships, title + bridge wiring (which
+    survive minification).
+    """
+
+    FRONTEND_SRC = Path("frontend") / "src"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.bundle = HTML
+
     def test_gui_uses_jamfbreak_brand(self):
-        self.assertIn("<title>Jamfbreak</title>", HTML)
-        self.assertIn(">Jamfbreak <", HTML)
-        self.assertNotIn("MDM Patcher", HTML)
+        self.assertIn("<title>Jamfbreak</title>", self.bundle)
+        # The bundle is minified JSX, so the brand survives as a JS string.
+        self.assertIn("JamfBreak", self.bundle)
+        app_source = (self.FRONTEND_SRC / "App.tsx").read_text(encoding="utf-8")
+        self.assertIn("JamfBreak", app_source)
+        self.assertNotIn("MDM Patcher", self.bundle)
         self.assertEqual(device.__package__, "jamfbreak")
 
-    def test_gui_uses_api_ok_contract_and_keeps_running_state(self):
-        self.assertIn("!result.ok", HTML)
-        self.assertNotIn("result.success", HTML)
-        self.assertIn("isPatching = state.status === 'patching'", HTML)
+    def test_gui_wires_the_pywebview_bridge(self):
+        # Compiled code keeps property names for the bridge calls.
+        for call in ("get_state", "refresh", "start_bypass", "get_about", "open_github"):
+            self.assertIn(call, self.bundle)
+        source = (self.FRONTEND_SRC / "api.ts").read_text(encoding="utf-8")
+        self.assertIn("start_bypass", source)
+        self.assertIn("get_about", source)
+
+    def test_gui_ok_contract_no_legacy_error_shape(self):
+        source = (self.FRONTEND_SRC / "App.tsx").read_text(encoding="utf-8")
+        self.assertIn("!result.ok", source)
+        self.assertNotIn("result.success", source)
 
     def test_gui_has_no_license_gate(self):
         """The Bypass button must not depend on a license-key workflow."""
-        self.assertNotIn("license key", HTML.lower())
-        self.assertNotIn("validate_key", HTML)
-        self.assertNotIn("keyValid", HTML)
+        self.assertNotIn("license key", self.bundle.lower())
+        self.assertNotIn("validate_key", self.bundle)
+        self.assertNotIn("keyValid", self.bundle)
 
-    def test_gui_renders_device_metadata_as_text(self):
-        self.assertNotIn("innerHTML", HTML)
-        self.assertIn("valueNode.textContent = String(value || '—')", HTML)
-        self.assertIn("document.createTextNode(String(text))", HTML)
+    def test_gui_never_injects_raw_html(self):
+        for path in self.FRONTEND_SRC.rglob("*.tsx"):
+            self.assertNotIn("dangerouslySetInnerHTML", path.read_text(encoding="utf-8"))
+            self.assertNotIn(".innerHTML", path.read_text(encoding="utf-8"))
+
+    def test_gui_states_flow_filters_no_bypass_entry(self):
+        # Bypass handler must call the bridge, not gate on license/account.
+        source = (self.FRONTEND_SRC / "App.tsx").read_text(encoding="utf-8")
+        self.assertIn("startBypass()", source)
 
 
 class PublicReleaseTest(unittest.TestCase):

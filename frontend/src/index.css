@@ -1,0 +1,157 @@
+@import "tailwindcss";
+@import "@fontsource-variable/outfit";
+
+/*
+ * Jamfbreak theme tokens. Every color is a CSS variable switched by
+ * data-theme="light" | "dark" | "hacker" on <html>, mapped into Tailwind
+ * utilities through @theme inline so bg-canvas / text-ink / border-line etc.
+ * respond live to theme changes.
+ */
+:root,
+:root[data-theme="dark"] {
+  --canvas: #0a0a0a;
+  --panel: #161616;
+  --panel-2: #1f1f1f;
+  --panel-3: #262626;
+  --line: #232323;
+  --line-strong: #2f2f2f;
+  --ink: #fafafa;
+  --ink-dim: #a3a3a3;
+  --ink-faint: #6f6f6f;
+  --dot-ok: #22c55e;
+  --accent-bg: #ededed;
+  --accent-fg: #0a0a0a;
+  --accent-bg-dark: #1f1f1f;
+  --accent-fg-dark: #ededed;
+}
+
+:root[data-theme="light"] {
+  --canvas: #f5f5f5;
+  --panel: #ffffff;
+  --panel-2: #f0f0f0;
+  --panel-3: #e6e6e6;
+  --line: #e4e4e4;
+  --line-strong: #d4d4d4;
+  --ink: #171717;
+  --ink-dim: #525252;
+  --ink-faint: #a3a3a3;
+  --dot-ok: #16a34a;
+  --accent-bg: #171717;
+  --accent-fg: #ffffff;
+  --accent-bg-dark: #e6e6e6;
+  --accent-fg-dark: #171717;
+}
+
+:root[data-theme="hacker"] {
+  --canvas: #000000;
+  --panel: #04120a;
+  --panel-2: #062012;
+  --panel-3: #0a2e1a;
+  --line: #0d3320;
+  --line-strong: #145c38;
+  --ink: #34ff8f;
+  --ink-dim: #1fa35d;
+  --ink-faint: #14763f;
+  --dot-ok: #34ff8f;
+  --accent-fg: #000000;
+  --accent-bg: #34ff8f;
+  --accent-fg-dark: #34ff8f;
+  --accent-bg-dark: #062012;
+  /* Dedicated token palette for the single-CLI hacker shell */
+  --hk-strong: #d7ffe8;
+  --hk-accent: #34ff8f;
+  --hk-on-accent: #001a0d;
+  --hk-dim: #9adfb9;
+  --hk-faint: #4c8f68;
+  --hk-danger: #ff6b6b;
+  --hk-line: #123a26;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-panel-3: var(--panel-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-dim: var(--ink-dim);
+  --color-ink-faint: var(--ink-faint);
+  --color-dot-ok: var(--dot-ok);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-bg: var(--accent-bg);
+  --color-accent-fg-dark: var(--accent-fg-dark);
+  --color-accent-bg-dark: var(--accent-bg-dark);
+  --color-hk-strong: var(--hk-strong, #d7ffe8);
+  --color-hk-accent: var(--hk-accent, #34ff8f);
+  --color-hk-on-accent: var(--hk-on-accent, #001a0d);
+  --color-hk-dim: var(--hk-dim, #9adfb9);
+  --color-hk-faint: var(--hk-faint, #4c8f68);
+  --color-hk-danger: var(--hk-danger, #ff6b6b);
+  --color-hk-line: var(--hk-line, #123a26);
+}
+
+/* Base: no overscroll/borders flicker inside webview */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Outfit Variable", "Outfit", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* Hacker theme: forced mono + CRT scanline overlay */
+:root[data-theme="hacker"] body {
+  font-family: "Cascadia Mono", "JetBrains Mono", Consolas, ui-monospace,
+    monospace !important;
+}
+
+:root[data-theme="hacker"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 60;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(52, 255, 143, 0.045) 0px,
+    rgba(52, 255, 143, 0.045) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+@keyframes hacker-flicker {
+  0%, 100% { opacity: 1; }
+  92% { opacity: 1; }
+  93% { opacity: 0.82; }
+  94% { opacity: 1; }
+}
+
+:root[data-theme="hacker"] .hacker-flicker {
+  animation: hacker-flicker 4s linear infinite;
+}
+
+/* Reduced motion: drop decorative animation */
+@media (prefers-reduced-motion: reduce) {
+  :root[data-theme="hacker"] body::after {
+    display: none;
+  }
+}
+
+/* Thin console scrollbar */
+.thin-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 4px;
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}

@@ -10,14 +10,27 @@ Usage:
 
 The GUI reuses the exact same `rodo_pipeline.run_rodo_pipeline` as the CLI,
 so both entry points use the same validation and controlled-reboot checks.
+
+NOTE on how the frontend is loaded: the compiled bundle is decoded to an
+HTML file in the user's temp directory and opened as a `file://` URL by
+`webview.create_window(url=...)`. We intentionally do not use the
+`html=` parameter: pywebview's EdgeChromium backend passes that through
+`CoreWebView2.NavigateToString`, which navigates to `about:blank` on an
+opaque, insecure origin — and this Vite module bundle refuses to execute
+there (React never mounts, no JS error logged). A plain `file://` URL
+mounts the same bundle fine.
 """
 
 from __future__ import annotations
 
+import platform
 import sys
+import tempfile
 import threading
 import time
+import webbrowser
 from dataclasses import dataclass, field, asdict
+from pathlib import Path
 from typing import Optional
 
 import webview
@@ -25,6 +38,21 @@ import webview
 from . import device
 from . import rodo_pipeline
 from .gui_html import HTML
+
+APP_VERSION = "1.0.8"
+REPO_URL = "https://github.com/FireMonster445/Jamfbreak"
+
+
+def _write_html_file() -> Path:
+    """Decode the compiled frontend bundle to disk and return its path.
+
+    The file is written under the user's temp directory so no app folder
+    needs to be writable and no source tree gets polluted.
+    """
+    base = Path(tempfile.gettempdir())
+    path = base / "Jamfbreak.html"
+    path.write_text(HTML, encoding="utf-8")
+    return path
 
 
 @dataclass
@@ -66,6 +94,52 @@ class GuiApi:
     def refresh(self) -> dict:
         self._log("Refreshing device list…", "info", None)
         threading.Thread(target=self._detect_once, daemon=True).start()
+        return {"ok": True}
+
+    def get_about(self) -> dict:
+        """Version / build details shown in the Settings dialog."""
+        bin_dir = Path(__file__).resolve().parent / "bin"
+        if getattr(sys, "frozen", False):
+            bin_dir = Path(sys.executable).resolve().parent / "bin"
+        backups = Path(__file__).resolve().parent / "backups"
+        if getattr(sys, "frozen", False):
+            backups = Path(sys.executable).resolve().parent / "backups"
+
+        def donor_search(name: str) -> bool:
+            root = backups / name if name else backups
+            try:
+                for entry in root.iterdir():
+                    if entry.is_dir() and (entry / "Manifest.plist").is_file():
+                        return True
+            except OSError:
+                pass
+            return False
+
+        webview_version = "pywebview/unknown"
+        try:
+            import importlib.metadata
+
+            webview_version = "pywebview/" + importlib.metadata.version("pywebview")
+        except importlib.metadata.PackageNotFoundError:
+            pass
+
+        return {
+            "app_version": APP_VERSION,
+            "python_version": platform.python_version(),
+            "platform": f"{platform.system()} {platform.release()}",
+            "webview_version": webview_version,
+            "frozen": bool(getattr(sys, "frozen", False)),
+            "bin_present": (bin_dir / "idevicebackup2.exe").is_file(),
+            "donors": {
+                "legacy": donor_search(""),
+                "ios26-ipad": donor_search("ios26-ipad"),
+                "ios26-iphone": donor_search("ios26-iphone"),
+            },
+        }
+
+    def open_github(self) -> dict:
+        """Open the public repository in the user's browser."""
+        webbrowser.open(REPO_URL)
         return {"ok": True}
 
     def start_bypass(self) -> dict:
@@ -169,13 +243,14 @@ def _device_to_dict(d: device.DeviceInfo) -> dict:
 
 def main():
     api = GuiApi()
+    html_path = _write_html_file()
     webview.create_window(
         title="Jamfbreak",
-        html=HTML,
+        url="file:///" + str(html_path).replace("\\", "/"),
         js_api=api,
-        width=720,
-        height=860,
-        min_size=(560, 640),
+        width=1080,
+        height=620,
+        min_size=(900, 560),
         background_color="#0A0A0A",
         text_select=False,
     )

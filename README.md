@@ -97,13 +97,25 @@ The project is based on the VitreosExploit approach of modifying a prepared back
 
 Jamfbreak performs additional validation around this process to reduce accidental restore failures.
 
-### Version-aware iPad backup routing
+### Version-aware backup routing
 
-For iPads reporting iPadOS 26.6.2 or newer, Jamfbreak automatically selects
-the reviewed modern iPad donor under `backups/ios26-ipad/`. Older iPads and
-iPhones continue to use the legacy donor. Both paths use the same guarded
-Python pipeline: validate, copy, edit, verify, settings-only restore, and
-restart only after a zero restore exit code.
+Devices reporting iOS/iPadOS 26.6.2 or newer (up to iOS 27.0.1) use the
+RodbautisTV 2026 method: iPads automatically select the reviewed modern iPad
+donor under `backups/ios26-ipad/`, and iPhones select the modern iPhone donor
+under `backups/ios26-iphone/`. Older devices continue to use the legacy donor.
+All paths use the same guarded Python pipeline: validate, copy, edit, verify,
+settings-only restore, and restart only after a zero restore exit code.
+
+Devices above iOS 27.0.1 are refused before any device modification: no
+reviewed donor exists for those versions, and an unvalidated settings restore
+is a data-loss and boot risk.
+
+The original third-party batch wrapper is not executed. Its renamed device
+helpers are byte-identical to the reviewed helpers already used by Jamfbreak,
+while its unconditional restart would bypass Jamfbreak's failed-restore
+safeguard. The RodbautisTV 2026 method is implemented natively with the same
+restore command and Manifest.plist identity targets, minus the unconditional
+restart.
 
 The original third-party batch wrapper is not executed. Its renamed device
 helpers are byte-identical to the reviewed helpers already used by Jamfbreak,
@@ -349,7 +361,9 @@ Make sure:
 
 ###  No donor backup found
 
-Place the reviewed donor backup in the expected `backups/` directory.
+Place the reviewed donor backup in the expected directory: `backups/` for
+older devices, `backups/ios26-ipad/` or `backups/ios26-iphone/` for devices
+on iOS 26.6.2 through 27.0.1.
 
 ###  `Manifest.plist` is invalid
 

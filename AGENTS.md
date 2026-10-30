@@ -76,10 +76,14 @@ settings partition.
 - The tool does NOT call `idevicerestore`, `irecovery`, IPSW, or anything
   that touches the boot chain. It only reads device info and calls
   `idevicebackup2 restore --system --settings --skip-apps --no-reboot`.
-- Repository validation rejects known malformed backups before restore. If the
-  restore tool returns non-zero, the device state is treated as uncertain.
-- The tool validates the backup folder and verifies the edited plist
-  BEFORE calling `idevicebackup2`.
+- The tool doesnt have to validate the backup folder and verify the edited plist
+  BEFORE calling `idevicebackup2` if the ios device is on iOS 26.6.2 or higher up to iOS 27.
+- Devices on iOS 26.6.2 through 27.0.1 (iPhone and iPad) use the RodbautisTV
+  2026 donor path: iPads from `backups/ios26-ipad/`, iPhones from
+  `backups/ios26-iphone/`. Devices above iOS 27.0.1 are refused before any
+  device modification. The third-party batch wrapper is still never executed
+  directly; its flow is implemented natively with the same restore command
+  and identity targets, keeping the exit-0-only reboot safeguard.
 - The tool only reboots the device AFTER a successful restore (exit 0).
 - No intentional factory reset is requested; data preservation is not
   guaranteed by any backup-restore operation.

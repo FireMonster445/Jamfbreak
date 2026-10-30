@@ -9,6 +9,18 @@ This implements the method from FireMonster445/RodoExploit:
   3. idevicebackup2 restore --system --settings --skip-apps --no-reboot
   4. idevicerestart
 
+Devices on iOS 26.6.2 through 27.0.1 use the RodbautisTV method instead
+(the device-class donors behind RodbautisTVMDMBypass2026.bat). That method
+uses the same restore command shape (-s <donor> restore --system --settings
+--skip-apps --no-reboot) and the same Manifest.plist identity targets
+(SerialNumber / UniqueDeviceID), but routes to reviewed iOS 26 donor
+backups. Jamfbreak never executes the third-party batch wrapper itself:
+its unconditional idevicerestart fires even when the restore failed,
+which is a bootloop risk. The equivalent native path keeps every
+Jamfbreak safeguard: validation before any device communication,
+post-edit verification, --no-reboot, and a controlled restart that only
+runs after idevicebackup2 returns exit 0.
+
 The --skip-apps and --settings flags are intended to limit the restore to
 configuration data. The backup folder itself is the "exploit" — a clean
 backup with MDM configuration stripped. This remains a real settings restore
@@ -51,6 +63,12 @@ This pipeline reduces bootloop and data-loss risk with these controls:
 6. **No encrypted backup handling.** The pre-made backup is unencrypted.
    There is no key-derivation, no RNCryptor, no byte-swapping that could
    produce a corrupt backup from a floating-point or encoding error.
+
+7. **Version gate.** Devices are only restored on an iOS/iPadOS version
+   the reviewed donor pipeline was validated for: 26.6.2 through 27.0.1
+   route to the dedicated RodbautisTV donors, older versions route to the
+   legacy RodoExploit donor, and anything above 27.0.1 is refused before
+   the device is touched.
 """
 
 from __future__ import annotations
@@ -85,7 +103,9 @@ class RodoResult:
 
 _BACKUPS_DIR = asset_dir("backups")
 _IOS26_IPAD_BACKUPS_DIR = _BACKUPS_DIR / "ios26-ipad"
+_IOS26_IPHONE_BACKUPS_DIR = _BACKUPS_DIR / "ios26-iphone"
 _IOS26_IPAD_MIN_VERSION = (26, 6, 2)
+_IOS27_MAX_VERSION = (27, 0, 1)
 
 MAX_PLIST_BYTES = 16 * 1024 * 1024
 MAX_BACKUP_FILES = 10_000
@@ -98,38 +118,68 @@ class BackupValidationError(Exception):
     """Raised when the backup folder fails pre-restore validation."""
 
 
+def _find_reviewed_backup_dir(root: Path) -> Optional[Path]:
+    """Find a donor subdirectory containing a Manifest.plist under root."""
+    if not root.is_dir():
+        return None
+    for entry in sorted(root.iterdir()):
+        if entry.is_dir() and (entry / "Manifest.plist").is_file():
+            return entry
+    return None
+
+
 def find_backup_dir() -> Optional[Path]:
     """Find the pre-made clean backup folder under backups/.
 
     Looks for any subdirectory containing a Manifest.plist.
     The folder name must match the donor's Info.plist target identifier.
     """
-    if not _BACKUPS_DIR.is_dir():
-        return None
-    for entry in sorted(_BACKUPS_DIR.iterdir()):
-        if entry.is_dir() and (entry / "Manifest.plist").is_file():
-            return entry
-    return None
+    return _find_reviewed_backup_dir(_BACKUPS_DIR)
 
 
 def find_ios26_ipad_backup_dir() -> Optional[Path]:
     """Find the reviewed iPadOS 26.6.2+ donor in its dedicated directory."""
-    if not _IOS26_IPAD_BACKUPS_DIR.is_dir():
-        return None
-    for entry in sorted(_IOS26_IPAD_BACKUPS_DIR.iterdir()):
-        if entry.is_dir() and (entry / "Manifest.plist").is_file():
-            return entry
-    return None
+    return _find_reviewed_backup_dir(_IOS26_IPAD_BACKUPS_DIR)
+
+
+def find_ios26_iphone_backup_dir() -> Optional[Path]:
+    """Find the reviewed iOS 26.6.2+ iPhone donor in its dedicated directory."""
+    return _find_reviewed_backup_dir(_IOS26_IPHONE_BACKUPS_DIR)
+
+
+def _version_in_modern_window(version: tuple[int, ...] | None) -> bool:
+    """Return whether 26.6.2 <= version <= 27.0.1 (the RodbautisTV window)."""
+    return (
+        version is not None
+        and _IOS26_IPAD_MIN_VERSION <= version <= _IOS27_MAX_VERSION
+    )
+
+
+def _needs_modern_2026_donor(info: device.DeviceInfo) -> bool:
+    """Return whether this device runs iOS 26.6.2 up to 27.0.1."""
+    return _version_in_modern_window(_version_parts(info.product_version))
 
 
 def _requires_ios26_ipad_backup(info: device.DeviceInfo) -> bool:
-    """Return whether this device needs the dedicated modern-iPad donor."""
-    version = _version_parts(info.product_version)
+    """Return whether this iPad needs the dedicated modern-iPad donor."""
     return (
         info.product_type.casefold().startswith("ipad")
-        and version is not None
-        and version >= _IOS26_IPAD_MIN_VERSION
+        and _needs_modern_2026_donor(info)
     )
+
+
+def _requires_ios26_iphone_backup(info: device.DeviceInfo) -> bool:
+    """Return whether this iPhone needs the dedicated modern-iPhone donor."""
+    return (
+        not info.product_type.casefold().startswith("ipad")
+        and _needs_modern_2026_donor(info)
+    )
+
+
+def _exceeds_supported_ios(info: device.DeviceInfo) -> bool:
+    """Return whether the device runs an iOS/iPadOS above 27.0.1."""
+    version = _version_parts(info.product_version)
+    return version is not None and version > _IOS27_MAX_VERSION
 
 
 def edit_manifest_plist(
@@ -141,7 +191,7 @@ def edit_manifest_plist(
     """
     Inject the device's Serial + UDID into Manifest.plist.
 
-    The batch script does this via XPath:
+    The batch scripts do this via XPath:
       //key[.='SerialNumber']/following-sibling::string[1]  -> serial
       //key[.='UniqueDeviceID']/following-sibling::string[1] -> udid
 
@@ -555,13 +605,43 @@ def run_rodo_pipeline(
     log(f"Serial   : {info.serial}", "info", None)
     log(f"UDID     : {info.udid}", "info", None)
 
+    # The reviewed donors cover iOS 26.6.2 through 27.0.1 (RodbautisTV
+    # 2026 method) plus every version the legacy RodoExploit donor covers.
+    # Anything above 27.0.1 has no reviewed donor: refuse before the device
+    # is touched instead of running an unvalidated restore.
+    if _exceeds_supported_ios(info):
+        log(
+            f"iOS {info.product_version} is above the supported bypass "
+            "range (up to 27.0.1).",
+            "error",
+            None,
+        )
+        log(
+            "No reviewed donor exists for this version. Aborting before any "
+            "device modification — device is untouched.",
+            "info",
+            None,
+        )
+        result.exit_code = 6
+        result.error = f"iOS {info.product_version} exceeds the supported 27.0.1 limit"
+        return result
+
+    modern_2026 = _needs_modern_2026_donor(info)
+    if modern_2026:
+        log(
+            f"iOS {info.product_version} detected; using the RodbautisTV "
+            "2026 method donors.",
+            "info",
+            None,
+        )
+
     # --------------------------------------------------------- find backup
     log("Locating clean backup folder…", "step", "2/5")
-    uses_ios26_ipad_backup = False
     if backup_dir:
         bdir = Path(backup_dir).resolve()
+        modern_backup_finder: Optional[Path] = None
     elif _requires_ios26_ipad_backup(info):
-        uses_ios26_ipad_backup = True
+        modern_backup_finder = _IOS26_IPAD_BACKUPS_DIR
         log(
             f"iPadOS {info.product_version} detected; selecting the reviewed "
             "iPadOS 26.6.2+ donor backup.",
@@ -569,16 +649,26 @@ def run_rodo_pipeline(
             None,
         )
         bdir = find_ios26_ipad_backup_dir()
+    elif _requires_ios26_iphone_backup(info):
+        modern_backup_finder = _IOS26_IPHONE_BACKUPS_DIR
+        log(
+            f"iOS {info.product_version} detected; selecting the reviewed "
+            "iOS 26.6.2+ iPhone donor backup.",
+            "info",
+            None,
+        )
+        bdir = find_ios26_iphone_backup_dir()
     else:
+        modern_backup_finder = None
         bdir = find_backup_dir()
 
     if not bdir or not (bdir / "Manifest.plist").is_file():
-        if uses_ios26_ipad_backup:
-            log("No iPadOS 26.6.2+ donor backup found.", "error", None)
+        if modern_backup_finder is not None:
+            log("No iOS 26.6.2+ donor backup found.", "error", None)
             log("Expected a validated backup under:", "info", None)
-            log(str(_IOS26_IPAD_BACKUPS_DIR), "info", None)
+            log(str(modern_backup_finder), "info", None)
             result.exit_code = 4
-            result.error = "iPadOS 26.6.2+ backup folder missing"
+            result.error = "iOS 26.6.2+ backup folder missing"
             return result
         log("No clean backup folder found.", "error", None)
         log("Place a reviewed donor backup folder into:", "info", None)

@@ -72,6 +72,23 @@ if (-not $backupDirs) {
     Write-Step "Found donor backup: $($backupDirs[0].Name)"
 }
 
+$ios26Dirs = @("ios26-ipad", "ios26-iphone") | ForEach-Object {
+    Join-Path $BackupsDir $_
+}
+foreach ($ios26Dir in $ios26Dirs) {
+    if (-not (Test-Path -LiteralPath $ios26Dir)) {
+        New-Item -ItemType Directory -Path $ios26Dir | Out-Null
+    }
+    $ios26Donors = Get-ChildItem -LiteralPath $ios26Dir -Directory -ErrorAction SilentlyContinue |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "Manifest.plist") }
+    if (-not $ios26Donors) {
+        Write-Warning "No iOS 26.6.2+ donor backup found in $ios26Dir"
+        Write-Warning "Devices on iOS 26.6.2-27.0.1 need a reviewed donor there."
+    } else {
+        Write-Step "Found iOS 26.6.2+ donor in $(Split-Path $ios26Dir -Leaf): $($ios26Donors[0].Name)"
+    }
+}
+
 Write-Step "Checking the pinned Python runtime dependency"
 $requirements = Join-Path (Split-Path $PSScriptRoot -Parent) "requirements.txt"
 & python -c "import webview; print(webview.__version__)"
